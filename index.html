@@ -2,79 +2,200 @@
 <html lang="id">
 <head>
     <meta charset="UTF-8">
-    <title>Cookie Parser Tool</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Data Formatter & Exporter</title>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 20px; background: #f0f2f5; }
-        .container { max-width: 900px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-        textarea { width: 100%; height: 200px; margin: 10px 0; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
-        .btn { padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; color: white; font-weight: bold; margin-right: 10px; }
-        .btn-conv { background-color: #2c3e50; }
-        .btn-csv { background-color: #27ae60; }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-        th { background-color: #f4f4f4; }
-        .cookie-cell { max-width: 400px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        * { box-sizing: border-box; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
+            padding: 30px 15px; 
+            background: #f4f6f9; 
+            color: #333;
+        }
+        .container { 
+            max-width: 960px; 
+            margin: auto; 
+            background: #ffffff; 
+            padding: 25px; 
+            border-radius: 10px; 
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08); 
+        }
+        h2 { margin-top: 0; color: #1e293b; font-size: 1.4rem; }
+        .description { font-size: 0.9rem; color: #64748b; margin-bottom: 15px; }
+        textarea { 
+            width: 100%; 
+            height: 180px; 
+            padding: 12px; 
+            border: 1px solid #cbd5e1; 
+            border-radius: 6px; 
+            font-family: monospace;
+            font-size: 13px;
+            resize: vertical;
+        }
+        textarea:focus { outline: none; border-color: #3b82f6; ring: 2px #93c5fd; }
+        .btn-group { display: flex; gap: 10px; margin-top: 12px; align-items: center; flex-wrap: wrap; }
+        .btn { 
+            padding: 10px 18px; 
+            border: none; 
+            border-radius: 6px; 
+            cursor: pointer; 
+            color: white; 
+            font-weight: 600; 
+            font-size: 14px;
+            transition: opacity 0.2s;
+        }
+        .btn:hover { opacity: 0.9; }
+        .btn-conv { background-color: #2563eb; }
+        .btn-csv { background-color: #10b981; }
+        .btn-reset { background-color: #ef4444; }
+        .stats-badge {
+            margin-left: auto;
+            background: #e2e8f0;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            color: #334155;
+            font-weight: 600;
+        }
+        .table-wrapper { margin-top: 25px; overflow-x: auto; border-radius: 6px; border: 1px solid #e2e8f0; }
+        table { width: 100%; border-collapse: collapse; text-align: left; font-size: 13px; }
+        th { background-color: #f8fafc; color: #475569; font-weight: 600; padding: 10px 12px; border-bottom: 1px solid #e2e8f0; }
+        td { padding: 10px 12px; border-bottom: 1px solid #e2e8f0; }
+        tr:last-child td { border-bottom: none; }
+        .cookie-cell { max-width: 380px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: monospace; color: #64748b; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h2>Parser Data UID|PASS|COOKIE</h2>
+    <h2>Data Parser & Export Tool</h2>
+    <p class="description">Format per baris: <code>UID|PASSWORD|COOKIE</code></p>
+    
     <textarea id="rawInput" placeholder="Tempel data di sini..."></textarea>
-    <div>
-        <button class="btn btn-conv" onclick="prosesData()">Konversi ke Tabel</button>
-        <button class="btn btn-csv" onclick="downloadCSV()">Download .CSV (Excel)</button>
+    
+    <div class="btn-group">
+        <button class="btn btn-conv" onclick="prosesData()">Konversi Data</button>
+        <button class="btn btn-csv" onclick="downloadCSV()">Download .CSV</button>
+        <button class="btn btn-reset" onclick="resetForm()">Bersihkan</button>
+        <span id="counter" class="stats-badge" style="display: none;">0 Data Terdeteksi</span>
     </div>
 
-    <div id="outputArea"></div>
+    <div class="table-wrapper" id="tableContainer" style="display: none;">
+        <div id="outputArea"></div>
+    </div>
 </div>
 
 <script>
     let currentData = [];
 
+    // Fungsi membuat 6 digit ID acak
+    function generateRandomOrderId() {
+        return Math.floor(100000 + Math.random() * 900000);
+    }
+
     function prosesData() {
         const input = document.getElementById('rawInput').value;
         const lines = input.trim().split('\n');
         currentData = [];
-        let html = '<table><thead><tr><th>UID</th><th>Password</th><th>Cookie</th></tr></thead><tbody>';
 
         lines.forEach(line => {
-            if (!line.trim()) return;
+            const trimmedLine = line.trim();
+            if (!trimmedLine) return;
             
-            // Logic: Mencari pemisah pertama dan kedua saja, sisa baris dianggap cookie
-            const firstPipe = line.indexOf('|');
-            const secondPipe = line.indexOf('|', firstPipe + 1);
+            // Mencari separator '|' pertama dan kedua
+            const firstPipe = trimmedLine.indexOf('|');
+            const secondPipe = trimmedLine.indexOf('|', firstPipe + 1);
             
             if (firstPipe !== -1 && secondPipe !== -1) {
-                const uid = line.substring(0, firstPipe);
-                const pass = line.substring(firstPipe + 1, secondPipe);
-                const cookie = line.substring(secondPipe + 1); // Ambil SEMUA sisa baris
+                const uid = trimmedLine.substring(0, firstPipe).trim();
+                const pass = trimmedLine.substring(firstPipe + 1, secondPipe).trim();
+                const cookie = trimmedLine.substring(secondPipe + 1).trim();
                 
                 currentData.push({ uid, pass, cookie });
-                html += `<tr><td>${uid}</td><td>${pass}</td><td class="cookie-cell">${cookie}</td></tr>`;
             }
         });
 
+        if (currentData.length === 0) {
+            alert('Tidak ada data valid yang bisa dikonversi!');
+            return;
+        }
+
+        // Tampilkan jumlah baris yang berhasil diproses
+        const badge = document.getElementById('counter');
+        badge.innerText = `${currentData.length} Akun Diproses`;
+        badge.style.display = 'inline-block';
+
+        // Render tabel
+        let html = '<table><thead><tr><th>No</th><th>UID</th><th>Password</th><th>Cookie</th></tr></thead><tbody>';
+        currentData.forEach((row, idx) => {
+            html += `<tr>
+                <td>${idx + 1}</td>
+                <td><strong>${escapeHtml(row.uid)}</strong></td>
+                <td>${escapeHtml(row.pass)}</td>
+                <td class="cookie-cell" title="${escapeHtml(row.cookie)}">${escapeHtml(row.cookie)}</td>
+            </tr>`;
+        });
         html += '</tbody></table>';
+
         document.getElementById('outputArea').innerHTML = html;
+        document.getElementById('tableContainer').style.display = 'block';
     }
 
     function downloadCSV() {
-        if (currentData.length === 0) { alert('Proses data dulu!'); return; }
-        
-        let csvContent = "data:text/csv;charset=utf-8,UID,Password,Cookie\n";
+        if (currentData.length === 0) { 
+            alert('Silakan konversi data terlebih dahulu sebelum download!'); 
+            return; 
+        }
+
+        // Buat konten CSV
+        let csvContent = "\uFEFFUID,Password,Cookie\r\n"; // \uFEFF agar rapi & tidak rusak saat dibuka di Excel
         currentData.forEach(row => {
-            // Escape quote untuk CSV
-            let cookie = row.cookie.replace(/"/g, '""');
-            csvContent += `${row.uid},${row.pass},"${cookie}"\n`;
+            let cookieSanitized = row.cookie.replace(/"/g, '""');
+            let passSanitized = row.pass.replace(/"/g, '""');
+            let uidSanitized = row.uid.replace(/"/g, '""');
+            csvContent += `"${uidSanitized}","${passSanitized}","${cookieSanitized}"\r\n`;
         });
 
-        const encodedUri = encodeURI(csvContent);
+        // 1. Ambil password dari baris pertama data yang dikonversi
+        const samplePass = currentData[0].pass || 'pass';
+        
+        // 2. Bersihkan karakter ilegal yang dilarang pada penamaan file komputer (\ / : * ? " < > | dan spasi)
+        const safePass = samplePass.replace(/[\/\\?%*:|"<> ]/g, '_');
+
+        // 3. Buat nama file dinamis: [Jumlah]_[Password]_[RandomID].csv
+        const orderId = generateRandomOrderId();
+        const totalItems = currentData.length;
+        const fileName = `${totalItems}_${safePass}_ORD-${orderId}.csv`;
+
+        // Download otomatis via Blob
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
         const link = document.createElement("a");
-        link.setAttribute("href", encodedUri);
-        link.setAttribute("download", "data_akun.csv");
+        
+        link.setAttribute("href", url);
+        link.setAttribute("download", fileName);
         document.body.appendChild(link);
         link.click();
+        
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+    }
+
+    function resetForm() {
+        document.getElementById('rawInput').value = '';
+        document.getElementById('outputArea').innerHTML = '';
+        document.getElementById('tableContainer').style.display = 'none';
+        document.getElementById('counter').style.display = 'none';
+        currentData = [];
+    }
+
+    function escapeHtml(text) {
+        return text
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
     }
 </script>
 
