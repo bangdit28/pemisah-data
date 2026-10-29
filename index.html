@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Data Formatter & Exporter</title>
+    <!-- Library SheetJS untuk export .XLSX Excel -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
         * { box-sizing: border-box; }
         body { 
@@ -60,7 +62,27 @@
             resize: vertical;
         }
         textarea:focus { outline: none; border-color: #3b82f6; }
-        .btn-group { display: flex; gap: 10px; margin-top: 15px; align-items: center; flex-wrap: wrap; }
+        
+        .btn-group { 
+            display: flex; 
+            gap: 10px; 
+            margin-top: 15px; 
+            align-items: center; 
+            flex-wrap: wrap; 
+        }
+        .select-format {
+            padding: 9px 12px;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            color: #334155;
+            background: #fff;
+            outline: none;
+            cursor: pointer;
+        }
+        .select-format:focus { border-color: #10b981; }
+
         .btn { 
             padding: 10px 18px; 
             border: none; 
@@ -73,8 +95,9 @@
         }
         .btn:hover { opacity: 0.9; }
         .btn-conv { background-color: #2563eb; }
-        .btn-csv { background-color: #10b981; }
+        .btn-download { background-color: #10b981; }
         .btn-reset { background-color: #ef4444; }
+        
         .stats-badge {
             margin-left: auto;
             background: #e2e8f0;
@@ -108,7 +131,7 @@
     <h2>Data Parser & Export Tool</h2>
     <p class="description">Format per baris: <code>UID|PASSWORD|COOKIE</code></p>
     
-    <!-- Pilihan Status / Jenis Transaksi -->
+    <!-- Pilihan Status / Jenis Data -->
     <div class="type-selector">
         <span class="type-label">Jenis Data:</span>
         <label class="type-option">
@@ -123,7 +146,17 @@
     
     <div class="btn-group">
         <button class="btn btn-conv" onclick="prosesData()">Konversi Data</button>
-        <button class="btn btn-csv" onclick="downloadCSV()">Download .CSV</button>
+        
+        <!-- Pilihan Format Download -->
+        <select id="exportFormat" class="select-format">
+            <option value="csv">File .CSV (Excel)</option>
+            <option value="xlsx">File .XLSX (Modern Excel)</option>
+            <option value="txt_pipe">File .TXT (UID|Pass|Cookie)</option>
+            <option value="txt_full">File .TXT (UID|Pass|Cookie|Status)</option>
+            <option value="json">File .JSON</option>
+        </select>
+
+        <button class="btn btn-download" onclick="downloadFile()">Download File</button>
         <button class="btn btn-reset" onclick="resetForm()">Bersihkan</button>
         <span id="counter" class="stats-badge" style="display: none;">0 Data Terdeteksi</span>
     </div>
@@ -176,7 +209,6 @@
         badge.innerText = `${currentData.length} Akun (${statusType})`;
         badge.style.display = 'inline-block';
 
-        // Render tabel dengan kolom Status
         let html = '<table><thead><tr><th>No</th><th>Status</th><th>UID</th><th>Password</th><th>Cookie</th></tr></thead><tbody>';
         currentData.forEach((row, idx) => {
             const badgeClass = row.status === 'ORDER' ? 'badge-order' : 'badge-refund';
@@ -195,35 +227,70 @@
         document.getElementById('tableContainer').style.display = 'block';
     }
 
-    function downloadCSV() {
+    // Fungsi Utama Download Sesuai Format yang Dipilih
+    function downloadFile() {
         if (currentData.length === 0) { 
             alert('Silakan konversi data terlebih dahulu sebelum download!'); 
             return; 
         }
 
-        // Header CSV dengan kolom Status
-        let csvContent = "\uFEFFUID,Password,Cookie,Status\r\n";
-        currentData.forEach(row => {
-            let cookieSanitized = row.cookie.replace(/"/g, '""');
-            let passSanitized = row.pass.replace(/"/g, '""');
-            let uidSanitized = row.uid.replace(/"/g, '""');
-            let statusSanitized = row.status.replace(/"/g, '""');
-            csvContent += `"${uidSanitized}","${passSanitized}","${cookieSanitized}","${statusSanitized}"\r\n`;
-        });
-
+        const format = document.getElementById('exportFormat').value;
         const samplePass = currentData[0].pass || 'pass';
         const safePass = samplePass.replace(/[\/\\?%*:|"<> ]/g, '_');
-        
-        // Menggunakan tipe status saat ini (ORDER atau REFUND-GARANSI)
         const statusType = currentData[0].status;
         const orderId = generateRandomOrderId();
         const totalItems = currentData.length;
         
-        // Format Nama File: [Jumlah]_[Password]_[Status]_[ID].csv
-        // Contoh: 5_Pass123_REFUND-GARANSI_ORD-829102.csv
-        const fileName = `${totalItems}_${safePass}_${statusType}_ORD-${orderId}.csv`;
+        // Pola nama file: [Jumlah]_[Password]_[Status]_[ID]
+        const baseFileName = `${totalItems}_${safePass}_${statusType}_ORD-${orderId}`;
 
-        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        if (format === 'csv') {
+            // FORMAT CSV
+            let csvContent = "\uFEFFUID,Password,Cookie,Status\r\n";
+            currentData.forEach(row => {
+                let cookieSanitized = row.cookie.replace(/"/g, '""');
+                let passSanitized = row.pass.replace(/"/g, '""');
+                let uidSanitized = row.uid.replace(/"/g, '""');
+                let statusSanitized = row.status.replace(/"/g, '""');
+                csvContent += `"${uidSanitized}","${passSanitized}","${cookieSanitized}","${statusSanitized}"\r\n`;
+            });
+            downloadBlob(csvContent, `${baseFileName}.csv`, 'text/csv;charset=utf-8;');
+
+        } else if (format === 'xlsx') {
+            // FORMAT XLSX (EXCEL)
+            if (typeof XLSX === 'undefined') {
+                alert('Library Excel belum siap / tidak ada koneksi internet. Silakan gunakan format CSV.');
+                return;
+            }
+            const sheetData = [
+                ["UID", "Password", "Cookie", "Status"],
+                ...currentData.map(r => [r.uid, r.pass, r.cookie, r.status])
+            ];
+            const wb = XLSX.utils.book_new();
+            const ws = XLSX.utils.aoa_to_sheet(sheetData);
+            XLSX.utils.book_append_sheet(wb, ws, "Data Akun");
+            XLSX.writeFile(wb, `${baseFileName}.xlsx`);
+
+        } else if (format === 'txt_pipe') {
+            // FORMAT TXT RAW (UID|Password|Cookie)
+            let txtContent = currentData.map(r => `${r.uid}|${r.pass}|${r.cookie}`).join('\r\n');
+            downloadBlob(txtContent, `${baseFileName}.txt`, 'text/plain;charset=utf-8;');
+
+        } else if (format === 'txt_full') {
+            // FORMAT TXT FULL (UID|Password|Cookie|Status)
+            let txtContent = currentData.map(r => `${r.uid}|${r.pass}|${r.cookie}|${r.status}`).join('\r\n');
+            downloadBlob(txtContent, `${baseFileName}.txt`, 'text/plain;charset=utf-8;');
+
+        } else if (format === 'json') {
+            // FORMAT JSON
+            let jsonContent = JSON.stringify(currentData, null, 2);
+            downloadBlob(jsonContent, `${baseFileName}.json`, 'application/json;charset=utf-8;');
+        }
+    }
+
+    // Helper download Blob
+    function downloadBlob(content, fileName, mimeType) {
+        const blob = new Blob([content], { type: mimeType });
         const url = URL.createObjectURL(blob);
         const link = document.createElement("a");
         
@@ -242,6 +309,7 @@
         document.getElementById('tableContainer').style.display = 'none';
         document.getElementById('counter').style.display = 'none';
         document.querySelector('input[name="dataType"][value="ORDER"]').checked = true;
+        document.getElementById('exportFormat').value = 'csv';
         currentData = [];
     }
 
