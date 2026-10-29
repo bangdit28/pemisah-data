@@ -22,6 +22,33 @@
         }
         h2 { margin-top: 0; color: #1e293b; font-size: 1.4rem; }
         .description { font-size: 0.9rem; color: #64748b; margin-bottom: 15px; }
+        
+        .type-selector {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            background: #f8fafc;
+            padding: 12px 16px;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+            margin-bottom: 15px;
+        }
+        .type-label {
+            font-size: 13px;
+            font-weight: 700;
+            color: #334155;
+        }
+        .type-option {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 600;
+            color: #475569;
+        }
+        .type-option input { cursor: pointer; }
+
         textarea { 
             width: 100%; 
             height: 180px; 
@@ -32,34 +59,7 @@
             font-size: 13px;
             resize: vertical;
         }
-        textarea:focus { outline: none; border-color: #3b82f6; ring: 2px #93c5fd; }
-        
-        .warranty-box {
-            margin-top: 15px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            flex-wrap: wrap;
-            background: #f8fafc;
-            padding: 12px;
-            border-radius: 8px;
-            border: 1px solid #e2e8f0;
-        }
-        .warranty-box label {
-            font-size: 13px;
-            font-weight: 600;
-            color: #475569;
-        }
-        .select-input, .custom-input {
-            padding: 8px 12px;
-            border: 1px solid #cbd5e1;
-            border-radius: 6px;
-            font-size: 13px;
-            outline: none;
-            background: #fff;
-        }
-        .select-input:focus, .custom-input:focus { border-color: #3b82f6; }
-
+        textarea:focus { outline: none; border-color: #3b82f6; }
         .btn-group { display: flex; gap: 10px; margin-top: 15px; align-items: center; flex-wrap: wrap; }
         .btn { 
             padding: 10px 18px; 
@@ -91,15 +91,15 @@
         tr:last-child td { border-bottom: none; }
         .cookie-cell { max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: monospace; color: #64748b; }
         
-        .badge-warranty {
-            background-color: #e0e7ff;
-            color: #3730a3;
+        .badge-status {
+            display: inline-block;
             padding: 3px 8px;
             border-radius: 4px;
             font-size: 12px;
-            font-weight: 600;
-            display: inline-block;
+            font-weight: 700;
         }
+        .badge-order { background: #dbeafe; color: #1e40af; }
+        .badge-refund { background: #fee2e2; color: #b91c1c; }
     </style>
 </head>
 <body>
@@ -108,22 +108,18 @@
     <h2>Data Parser & Export Tool</h2>
     <p class="description">Format per baris: <code>UID|PASSWORD|COOKIE</code></p>
     
-    <textarea id="rawInput" placeholder="Tempel data di sini..."></textarea>
-
-    <!-- Pilihan Garansi -->
-    <div class="warranty-box">
-        <label for="warrantySelect">Pilihan Garansi:</label>
-        <select id="warrantySelect" class="select-input" onchange="toggleCustomWarranty(this.value)">
-            <option value="Non Garansi">Non Garansi</option>
-            <option value="Garansi 1x Login">Garansi 1x Login</option>
-            <option value="Garansi 24 Jam">Garansi 24 Jam</option>
-            <option value="Garansi 3 Hari">Garansi 3 Hari</option>
-            <option value="Garansi 7 Hari">Garansi 7 Hari</option>
-            <option value="Garansi 30 Hari">Garansi 30 Hari</option>
-            <option value="CUSTOM">Custom (Tulis Sendiri)...</option>
-        </select>
-        <input type="text" id="customWarrantyInput" class="custom-input" placeholder="Masukkan garansi..." style="display: none;">
+    <!-- Pilihan Status / Jenis Transaksi -->
+    <div class="type-selector">
+        <span class="type-label">Jenis Data:</span>
+        <label class="type-option">
+            <input type="radio" name="dataType" value="ORDER" checked> Order
+        </label>
+        <label class="type-option">
+            <input type="radio" name="dataType" value="REFUND-GARANSI"> Refund / Garansi
+        </label>
     </div>
+
+    <textarea id="rawInput" placeholder="Tempel data di sini..."></textarea>
     
     <div class="btn-group">
         <button class="btn btn-conv" onclick="prosesData()">Konversi Data</button>
@@ -140,43 +136,25 @@
 <script>
     let currentData = [];
 
-    // Fungsi membuat 6 digit ID acak
     function generateRandomOrderId() {
         return Math.floor(100000 + Math.random() * 900000);
     }
 
-    // Toggle input teks jika memilih opsi 'Custom'
-    function toggleCustomWarranty(val) {
-        const customInput = document.getElementById('customWarrantyInput');
-        if (val === 'CUSTOM') {
-            customInput.style.display = 'inline-block';
-            customInput.focus();
-        } else {
-            customInput.style.display = 'none';
-        }
-    }
-
-    // Mengambil nilai garansi yang sedang aktif
-    function getSelectedWarranty() {
-        const select = document.getElementById('warrantySelect').value;
-        if (select === 'CUSTOM') {
-            const customVal = document.getElementById('customWarrantyInput').value.trim();
-            return customVal ? customVal : 'Non Garansi';
-        }
-        return select;
+    function getSelectedType() {
+        const checked = document.querySelector('input[name="dataType"]:checked');
+        return checked ? checked.value : 'ORDER';
     }
 
     function prosesData() {
         const input = document.getElementById('rawInput').value;
         const lines = input.trim().split('\n');
-        const warranty = getSelectedWarranty();
+        const statusType = getSelectedType();
         currentData = [];
 
         lines.forEach(line => {
             const trimmedLine = line.trim();
             if (!trimmedLine) return;
             
-            // Mencari separator '|' pertama dan kedua
             const firstPipe = trimmedLine.indexOf('|');
             const secondPipe = trimmedLine.indexOf('|', firstPipe + 1);
             
@@ -185,7 +163,7 @@
                 const pass = trimmedLine.substring(firstPipe + 1, secondPipe).trim();
                 const cookie = trimmedLine.substring(secondPipe + 1).trim();
                 
-                currentData.push({ uid, pass, cookie, warranty });
+                currentData.push({ uid, pass, cookie, status: statusType });
             }
         });
 
@@ -194,20 +172,21 @@
             return;
         }
 
-        // Tampilkan jumlah baris yang berhasil diproses
         const badge = document.getElementById('counter');
-        badge.innerText = `${currentData.length} Akun Diproses`;
+        badge.innerText = `${currentData.length} Akun (${statusType})`;
         badge.style.display = 'inline-block';
 
-        // Render tabel
-        let html = '<table><thead><tr><th>No</th><th>UID</th><th>Password</th><th>Cookie</th><th>Garansi</th></tr></thead><tbody>';
+        // Render tabel dengan kolom Status
+        let html = '<table><thead><tr><th>No</th><th>Status</th><th>UID</th><th>Password</th><th>Cookie</th></tr></thead><tbody>';
         currentData.forEach((row, idx) => {
+            const badgeClass = row.status === 'ORDER' ? 'badge-order' : 'badge-refund';
+            const labelText = row.status === 'ORDER' ? 'ORDER' : 'REFUND / GARANSI';
             html += `<tr>
                 <td>${idx + 1}</td>
+                <td><span class="badge-status ${badgeClass}">${labelText}</span></td>
                 <td><strong>${escapeHtml(row.uid)}</strong></td>
                 <td>${escapeHtml(row.pass)}</td>
                 <td class="cookie-cell" title="${escapeHtml(row.cookie)}">${escapeHtml(row.cookie)}</td>
-                <td><span class="badge-warranty">${escapeHtml(row.warranty)}</span></td>
             </tr>`;
         });
         html += '</tbody></table>';
@@ -222,30 +201,28 @@
             return; 
         }
 
-        // Buat konten CSV (ditambah kolom Garansi)
-        let csvContent = "\uFEFFUID,Password,Cookie,Garansi\r\n"; 
+        // Header CSV dengan kolom Status
+        let csvContent = "\uFEFFUID,Password,Cookie,Status\r\n";
         currentData.forEach(row => {
             let cookieSanitized = row.cookie.replace(/"/g, '""');
             let passSanitized = row.pass.replace(/"/g, '""');
             let uidSanitized = row.uid.replace(/"/g, '""');
-            let warrantySanitized = row.warranty.replace(/"/g, '""');
-            csvContent += `"${uidSanitized}","${passSanitized}","${cookieSanitized}","${warrantySanitized}"\r\n`;
+            let statusSanitized = row.status.replace(/"/g, '""');
+            csvContent += `"${uidSanitized}","${passSanitized}","${cookieSanitized}","${statusSanitized}"\r\n`;
         });
 
-        // 1. Ambil password & garansi dari data
         const samplePass = currentData[0].pass || 'pass';
-        const sampleWarranty = currentData[0].warranty || 'NoWarranty';
-        
-        // 2. Bersihkan karakter ilegal untuk penamaan file
         const safePass = samplePass.replace(/[\/\\?%*:|"<> ]/g, '_');
-        const safeWarranty = sampleWarranty.replace(/[\/\\?%*:|"<> ]/g, '-');
-
-        // 3. Format nama file: [Jumlah]_[Password]_[Garansi]_[RandomID].csv
+        
+        // Menggunakan tipe status saat ini (ORDER atau REFUND-GARANSI)
+        const statusType = currentData[0].status;
         const orderId = generateRandomOrderId();
         const totalItems = currentData.length;
-        const fileName = `${totalItems}_${safePass}_${safeWarranty}_ORD-${orderId}.csv`;
+        
+        // Format Nama File: [Jumlah]_[Password]_[Status]_[ID].csv
+        // Contoh: 5_Pass123_REFUND-GARANSI_ORD-829102.csv
+        const fileName = `${totalItems}_${safePass}_${statusType}_ORD-${orderId}.csv`;
 
-        // Download otomatis via Blob
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         const url = URL.createObjectURL(blob);
         const link = document.createElement("a");
@@ -264,9 +241,7 @@
         document.getElementById('outputArea').innerHTML = '';
         document.getElementById('tableContainer').style.display = 'none';
         document.getElementById('counter').style.display = 'none';
-        document.getElementById('warrantySelect').value = 'Non Garansi';
-        document.getElementById('customWarrantyInput').value = '';
-        document.getElementById('customWarrantyInput').style.display = 'none';
+        document.querySelector('input[name="dataType"][value="ORDER"]').checked = true;
         currentData = [];
     }
 
