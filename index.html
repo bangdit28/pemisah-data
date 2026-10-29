@@ -33,7 +33,34 @@
             resize: vertical;
         }
         textarea:focus { outline: none; border-color: #3b82f6; ring: 2px #93c5fd; }
-        .btn-group { display: flex; gap: 10px; margin-top: 12px; align-items: center; flex-wrap: wrap; }
+        
+        .warranty-box {
+            margin-top: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            background: #f8fafc;
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+        }
+        .warranty-box label {
+            font-size: 13px;
+            font-weight: 600;
+            color: #475569;
+        }
+        .select-input, .custom-input {
+            padding: 8px 12px;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            font-size: 13px;
+            outline: none;
+            background: #fff;
+        }
+        .select-input:focus, .custom-input:focus { border-color: #3b82f6; }
+
+        .btn-group { display: flex; gap: 10px; margin-top: 15px; align-items: center; flex-wrap: wrap; }
         .btn { 
             padding: 10px 18px; 
             border: none; 
@@ -62,7 +89,17 @@
         th { background-color: #f8fafc; color: #475569; font-weight: 600; padding: 10px 12px; border-bottom: 1px solid #e2e8f0; }
         td { padding: 10px 12px; border-bottom: 1px solid #e2e8f0; }
         tr:last-child td { border-bottom: none; }
-        .cookie-cell { max-width: 380px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: monospace; color: #64748b; }
+        .cookie-cell { max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: monospace; color: #64748b; }
+        
+        .badge-warranty {
+            background-color: #e0e7ff;
+            color: #3730a3;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+            display: inline-block;
+        }
     </style>
 </head>
 <body>
@@ -72,6 +109,21 @@
     <p class="description">Format per baris: <code>UID|PASSWORD|COOKIE</code></p>
     
     <textarea id="rawInput" placeholder="Tempel data di sini..."></textarea>
+
+    <!-- Pilihan Garansi -->
+    <div class="warranty-box">
+        <label for="warrantySelect">Pilihan Garansi:</label>
+        <select id="warrantySelect" class="select-input" onchange="toggleCustomWarranty(this.value)">
+            <option value="Non Garansi">Non Garansi</option>
+            <option value="Garansi 1x Login">Garansi 1x Login</option>
+            <option value="Garansi 24 Jam">Garansi 24 Jam</option>
+            <option value="Garansi 3 Hari">Garansi 3 Hari</option>
+            <option value="Garansi 7 Hari">Garansi 7 Hari</option>
+            <option value="Garansi 30 Hari">Garansi 30 Hari</option>
+            <option value="CUSTOM">Custom (Tulis Sendiri)...</option>
+        </select>
+        <input type="text" id="customWarrantyInput" class="custom-input" placeholder="Masukkan garansi..." style="display: none;">
+    </div>
     
     <div class="btn-group">
         <button class="btn btn-conv" onclick="prosesData()">Konversi Data</button>
@@ -93,9 +145,31 @@
         return Math.floor(100000 + Math.random() * 900000);
     }
 
+    // Toggle input teks jika memilih opsi 'Custom'
+    function toggleCustomWarranty(val) {
+        const customInput = document.getElementById('customWarrantyInput');
+        if (val === 'CUSTOM') {
+            customInput.style.display = 'inline-block';
+            customInput.focus();
+        } else {
+            customInput.style.display = 'none';
+        }
+    }
+
+    // Mengambil nilai garansi yang sedang aktif
+    function getSelectedWarranty() {
+        const select = document.getElementById('warrantySelect').value;
+        if (select === 'CUSTOM') {
+            const customVal = document.getElementById('customWarrantyInput').value.trim();
+            return customVal ? customVal : 'Non Garansi';
+        }
+        return select;
+    }
+
     function prosesData() {
         const input = document.getElementById('rawInput').value;
         const lines = input.trim().split('\n');
+        const warranty = getSelectedWarranty();
         currentData = [];
 
         lines.forEach(line => {
@@ -111,7 +185,7 @@
                 const pass = trimmedLine.substring(firstPipe + 1, secondPipe).trim();
                 const cookie = trimmedLine.substring(secondPipe + 1).trim();
                 
-                currentData.push({ uid, pass, cookie });
+                currentData.push({ uid, pass, cookie, warranty });
             }
         });
 
@@ -126,13 +200,14 @@
         badge.style.display = 'inline-block';
 
         // Render tabel
-        let html = '<table><thead><tr><th>No</th><th>UID</th><th>Password</th><th>Cookie</th></tr></thead><tbody>';
+        let html = '<table><thead><tr><th>No</th><th>UID</th><th>Password</th><th>Cookie</th><th>Garansi</th></tr></thead><tbody>';
         currentData.forEach((row, idx) => {
             html += `<tr>
                 <td>${idx + 1}</td>
                 <td><strong>${escapeHtml(row.uid)}</strong></td>
                 <td>${escapeHtml(row.pass)}</td>
                 <td class="cookie-cell" title="${escapeHtml(row.cookie)}">${escapeHtml(row.cookie)}</td>
+                <td><span class="badge-warranty">${escapeHtml(row.warranty)}</span></td>
             </tr>`;
         });
         html += '</tbody></table>';
@@ -147,25 +222,28 @@
             return; 
         }
 
-        // Buat konten CSV
-        let csvContent = "\uFEFFUID,Password,Cookie\r\n"; // \uFEFF agar rapi & tidak rusak saat dibuka di Excel
+        // Buat konten CSV (ditambah kolom Garansi)
+        let csvContent = "\uFEFFUID,Password,Cookie,Garansi\r\n"; 
         currentData.forEach(row => {
             let cookieSanitized = row.cookie.replace(/"/g, '""');
             let passSanitized = row.pass.replace(/"/g, '""');
             let uidSanitized = row.uid.replace(/"/g, '""');
-            csvContent += `"${uidSanitized}","${passSanitized}","${cookieSanitized}"\r\n`;
+            let warrantySanitized = row.warranty.replace(/"/g, '""');
+            csvContent += `"${uidSanitized}","${passSanitized}","${cookieSanitized}","${warrantySanitized}"\r\n`;
         });
 
-        // 1. Ambil password dari baris pertama data yang dikonversi
+        // 1. Ambil password & garansi dari data
         const samplePass = currentData[0].pass || 'pass';
+        const sampleWarranty = currentData[0].warranty || 'NoWarranty';
         
-        // 2. Bersihkan karakter ilegal yang dilarang pada penamaan file komputer (\ / : * ? " < > | dan spasi)
+        // 2. Bersihkan karakter ilegal untuk penamaan file
         const safePass = samplePass.replace(/[\/\\?%*:|"<> ]/g, '_');
+        const safeWarranty = sampleWarranty.replace(/[\/\\?%*:|"<> ]/g, '-');
 
-        // 3. Buat nama file dinamis: [Jumlah]_[Password]_[RandomID].csv
+        // 3. Format nama file: [Jumlah]_[Password]_[Garansi]_[RandomID].csv
         const orderId = generateRandomOrderId();
         const totalItems = currentData.length;
-        const fileName = `${totalItems}_${safePass}_ORD-${orderId}.csv`;
+        const fileName = `${totalItems}_${safePass}_${safeWarranty}_ORD-${orderId}.csv`;
 
         // Download otomatis via Blob
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -186,6 +264,9 @@
         document.getElementById('outputArea').innerHTML = '';
         document.getElementById('tableContainer').style.display = 'none';
         document.getElementById('counter').style.display = 'none';
+        document.getElementById('warrantySelect').value = 'Non Garansi';
+        document.getElementById('customWarrantyInput').value = '';
+        document.getElementById('customWarrantyInput').style.display = 'none';
         currentData = [];
     }
 
